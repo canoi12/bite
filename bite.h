@@ -5,21 +5,21 @@
 #include <stdlib.h>
 
 #if defined(_WIN32)
-#include <windows.h>
-#include <tchar.h>
-#include <gl/GL.h>
-#include <gl/GLU.h>
+    #include <windows.h>
+    #include <tchar.h>
+    #include <gl/GL.h>
+    #include <gl/GLU.h>
 #elif defined(__EMSCRIPTEN__)
     #include <emscripten.h>
     #include <emscripten/html5.h>
     #include <GL/gl.h>
     // #include <GLES2/gl2.h>
 #else
-#include <unistd.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <GL/gl.h>
-#include <GL/glx.h>
+    #include <unistd.h>
+    #include <X11/Xlib.h>
+    #include <X11/Xutil.h>
+    #include <GL/gl.h>
+    #include <GL/glx.h>
 #endif
 
 #define BITE_VERSION "0.1.0"
@@ -41,7 +41,11 @@ typedef struct be_Font be_Font;
 typedef void(*be_EventCallback)(be_Event*);
 
 enum {
-    BITE_QUIT = 1,
+    BITE_NONE = 0,
+    BITE_QUIT,
+
+    BITE_KEY_PRESSED,
+    BITE_KEY_RELEASED,
 
     BITE_WINDOW_RESIZE,
     BITE_WINDOW_MOVE,
@@ -53,9 +57,9 @@ enum {
     BITE_EVENTS
 };
 
-extern be_EventCallback _callbacks[BITE_EVENTS];
-
 struct be_Window {
+    int x, y;
+    int width, height;
 #if defined(_WIN32)
     HWND handle;
     HINSTANCE hInstance;
@@ -73,11 +77,6 @@ struct be_Window {
 
 struct be_Event {
     int type;
-#if defined(_WIN32)
-#elif defined(__EMSCRIPTEN__)
-#else
-    XEvent handle;
-#endif
     union {
         struct {
             be_Window* handle;
@@ -86,6 +85,9 @@ struct be_Event {
             void* data0;
             void* data1;
         } window;
+        struct {
+            int keycode;
+        } key;
     };
 };
 
@@ -99,6 +101,8 @@ extern "C" {
 BITE_API int bite_init(int flags);
 BITE_API void bite_quit(void);
 
+BITE_API void bite_poll_events(void);
+
 /*********************
  * Window
  *********************/
@@ -107,7 +111,7 @@ BITE_API void bite_destroy_window(be_Window* window);
 
 BITE_API void bite_window_swap(be_Window* window);
 
-BITE_API void bite_register_callback(int type, be_EventCallback* ev);
+BITE_API void bite_register_callback(int type, be_EventCallback ev);
 
 BITE_API void bite_window_get_size(be_Window* window, int* w, int* h);
 BITE_API int bite_window_get_mouse_button(be_Window* window, int btn);
@@ -117,10 +121,7 @@ BITE_API void bite_window_get_mouse_pos(be_Window* window, int* x, int* y);
  * Render
  *********************/
 
-/*********************
- * Event
- *********************/
-BITE_API int bite_event_poll(be_Event* ev);
+BITE_API void bite_render_clear(void);
 
 /*********************
  * Timer

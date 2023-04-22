@@ -1,18 +1,96 @@
 #include "bite.h"
 
+struct be_Context {
+    be_Window* window;
+};
+
+be_Window* _window;
+static be_EventCallback _callbacks[BITE_EVENTS];
+
 int bite_init(int flags) {
+    for (int i = 0; i < BITE_EVENTS; i++) {
+        _callbacks[i] = NULL;
+    }
     return 0;
 }
 
 void bite_quit() {}
 
+void bite_poll_events(void) {
+#if defined(_WIN32)
+#else
+    XEvent ev;
+    be_EventCallback calls[BITE_EVENTS];
+    for (int i = 0; i < BITE_EVENTS; i++) {
+        calls[i] = _callbacks[i];
+    }
+    while (XPending(_window->display)) {
+        XNextEvent(_window->display, &ev);
+        be_Event e = {0};
+        be_EventCallback fn = NULL;
+        switch(ev.type) {
+            case ClientMessage: {
+                if (ev.xclient.data.l[0] == XInternAtom(_window->display, "WM_DELETE_WINDOW", 0)) {
+                    e.type = BITE_WINDOW_CLOSE;
+                }
+            }
+            break;
+            case DestroyNotify: {
+                e.type = BITE_QUIT;
+            }
+            break;
+            case ConfigureNotify: {
+                XConfigureEvent xce = ev.xconfigure;
+                if ((xce.x != _window->x) || (xce.y != _window->y)) {
+                    _window->x = xce.x;
+                    _window->y = xce.y;
+                    e.type = BITE_WINDOW_MOVE;
+                    e.window.x = xce.x;
+                    e.window.y = xce.y;
+                    e.window.handle = _window;
+                }
+
+                if ((xce.width != _window->width) || (xce.height != _window->height)) {
+                    _window->width = xce.width;
+                    _window->height = xce.height;
+                    e.type = BITE_WINDOW_RESIZE;
+                    e.window.x = xce.width;
+                    e.window.y = xce.height;
+                    e.window.handle = _window;
+                }
+            }
+            break;
+            case KeyPress: {
+                e.type = BITE_KEY_PRESSED;
+                e.key.keycode = ev.xkey.keycode;
+            }
+            break;
+            case KeyRelease: {
+                e.type = BITE_KEY_RELEASED;
+                e.key.keycode = ev.xkey.keycode;
+            }
+            break;
+        }
+        fn = _callbacks[e.type];
+        if (fn) fn(&e);
+    }
+#endif
+}
+
 #if defined(_WIN32)
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    be_Event e;
+    e.type = 0;
     switch (msg) {
-        case WM_CLOSE: DestroyWindow(hwnd); break;
+        case WM_CLOSE: {
+            e.type = BITE_WINDOW_CLOSE;
+        }
+        break;
         case WM_DESTROY: PostQuitMessage(0); break;
         default: return DefWindowProc(hwnd, msg, wParam, lParam);
     }
+    be_EventCallback fn = _callbacks[e.type];
+    if (fn) fn(&e);
     return 0;
 }
 #else
@@ -164,9 +242,14 @@ be_Window* bite_create_window(const char* title, int w, int h, int flags) {
     window->display = dpy;
     window->handle = handle;
     window->glContext = context;
+    XSelectInput(dpy, handle, KeyPressMask | KeyReleaseMask);
     XClearWindow(dpy, handle);
     XMapRaised(dpy, handle);
+    XStoreName(dpy, handle, title);
 #endif
+    window->width = w;
+    window->height = h;
+    _window = window;
     return window;
 }
 
@@ -195,6 +278,11 @@ void bite_window_swap(be_Window* window) {
 #else
     glXSwapBuffers(window->display, window->handle);
 #endif
+}
+
+void bite_register_callback(int type, be_EventCallback callback) {
+    if (type < BITE_QUIT || type >= BITE_EVENTS) return;
+    _callbacks[type] = callback;
 }
 
 void bite_timer_sleep(be_u64 ms) {
