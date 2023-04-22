@@ -18,6 +18,11 @@ void bite_quit() {}
 
 void bite_poll_events(void) {
 #if defined(_WIN32)
+    MSG message;
+    while (GetMessage(&message, NULL, 0, 0)) {
+        TranslateMessage(&message);
+        DispatchMessage(&message);
+    }
 #else
     XEvent ev;
     be_EventCallback calls[BITE_EVENTS];
