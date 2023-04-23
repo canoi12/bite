@@ -1,24 +1,24 @@
 #include "bite.h"
 
-be_Window* wnd;
+#include <GL/gl.h>
 
-static int running = 1;
-
-void key_pressed(be_Event* ev) {
+void key_pressed(be_Context* ctx, be_Event* ev) {
     printf("Pressed: %x\n", ev->key.keycode);
 #if defined(_WIN32)
-    if (ev->key.keycode == VK_ESCAPE) running = 0;
+    if (ev->key.keycode == VK_ESCAPE) bite_set_should_close(ctx, 1);
 #else
-    if (ev->key.keycode == 0x09) running = 0;
+    if (ev->key.keycode == 0x09) bite_set_should_close(ctx, 1);
 #endif
 }
 
-void quit_callback(be_Event* ev) {
-    running = 0;
+void quit_callback(be_Context* ctx, be_Event* ev) {
+    bite_set_should_close(ctx, 1);
 }
 
-void render() {
+void main_loop(void* data) {
     // printf("Entering render function\n");
+    be_Context* ctx = (be_Context*)data;
+    bite_poll_events(ctx);
     glClearColor(0.3f, 0.4f, 0.4f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT);
     glBegin(GL_TRIANGLES);
@@ -29,24 +29,19 @@ void render() {
     glColor3f(0.f, 0.f, 1.f);
     glVertex2f(0.5f, -0.5f);
     glEnd();
-    bite_window_swap(wnd);
+    bite_swap(ctx);
 }
 
 int main(int argc, char** argv) {
-    bite_init(0);
-    printf("Testando essa porra\n");
-    wnd = bite_create_window("Example", 640, 380, 0);
+    be_Config c = bite_init_config("bitEngine", 640, 380);
+    be_Context* ctx = bite_create(&c);
 #if defined(__EMSCRIPTEN__)
-    emscripten_set_main_loop(render, 0, 1);
+    emscripten_set_main_loop_arg(main_loop, 0, 1, ctx);
 #else
-    bite_register_callback(BITE_WINDOW_CLOSE, quit_callback);
-    bite_register_callback(BITE_KEY_PRESSED, key_pressed);
-    while (running) {
-        bite_poll_events();
-        render();
-    }
+    bite_register_callback(ctx, BITE_WINDOW_CLOSE, quit_callback);
+    bite_register_callback(ctx, BITE_KEY_PRESSED, key_pressed);
+    while (!bite_should_close(ctx)) main_loop(ctx);
 #endif
-    bite_destroy_window(wnd);
-    bite_quit();
+    bite_destroy(ctx);
     return 0;
 }
