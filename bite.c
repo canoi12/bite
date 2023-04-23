@@ -5,10 +5,6 @@
     #include <tchar.h>
     #include <gl/GL.h>
     #include <gl/GLU.h>
-#elif defined(__EMSCRIPTEN__)
-    
-    #include <GL/gl.h>
-    // #include <GLES2/gl2.h>
 #else
     #if defined(__EMSCRIPTEN__)
         #include <emscripten.h>
@@ -53,14 +49,16 @@ struct be_Context {
 
 static be_Context _context;
 
-be_Context* _create_context(const be_Config* conf);
+int _init_context(be_Context* ctx, const be_Config* conf);
 void _poll_events(be_Context* ctx);
 
 #if defined(_WIN32)
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    be_Context* ctx = (be_Context*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     be_Event e;
     e.type = 0;
     switch (msg) {
+        case WM_CREATE: return 0;
         case WM_CLOSE: {
             e.type = BITE_WINDOW_CLOSE;
         }
@@ -72,12 +70,32 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             e.key.keycode = (int)wParam;
         }
         break;
+        case WM_SYSKEYUP:
+        case WM_KEYUP: {
+            e.type = BITE_KEY_RELEASED;
+            e.key.keycode = (int)wParam;
+        }
+        break;
     }
-    be_EventCallback fn = _callbacks[e.type];
-    if (fn) fn(&e);
+    be_EventCallback fn = NULL;
+    if (ctx) fn = ctx->callbacks[e.type];
+    if (fn) fn(ctx, &e);
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 #endif
+
+void bite_simple_triangle(void) {
+    glClearColor(0.3f, 0.4f, 0.4f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glBegin(GL_TRIANGLES);
+    glColor3f(1.f, 0.f, 0.f);
+    glVertex2f(0.f, 0.5f);
+    glColor3f(0.f, 1.f, 0.f);
+    glVertex2f(-0.5f, -0.5f);
+    glColor3f(0.f, 0.f, 1.f);
+    glVertex2f(0.5f, -0.5f);
+    glEnd();
+}
 
 be_Config bite_init_config(const char* title, int w, int h) {
     be_Config c = {0};
@@ -89,13 +107,18 @@ be_Config bite_init_config(const char* title, int w, int h) {
 }
 
 be_Context* bite_create(const be_Config* conf) {
-    be_Context* ctx = _create_context(conf);
-    if (!ctx) return ctx;
+    be_Context* ctx = malloc(sizeof(*ctx));
+    if (!ctx) {
+        fprintf(stderr, "Failed to alloc memory for context\n");
+        return NULL;
+    }
     ctx->running = 1;
-    ctx->window.width = conf->window.width;
-    ctx->window.height = conf->window.height;
     for (int i = 0; i < BITE_EVENTS; i++) {
         ctx->callbacks[i] = NULL;
+    }
+    if (_init_context(ctx, conf) < 0) {
+        free(ctx);
+        return NULL;
     }
     return ctx;
 }
@@ -154,6 +177,11 @@ void bite_swap(be_Context* ctx) {
 /*********************
  * Window
  *********************/
+void bite_set_window_width(be_Context* ctx, int width) {
+
+}
+
+
 int bite_get_window_width(be_Context* ctx) {
     if (!ctx) return -1;
     return ctx->window.width;
@@ -191,8 +219,7 @@ be_u64 bite_tick(void) {
 /*********************
  * Internal
  *********************/
-be_Context* _create_context(const be_Config* conf) {
-    be_Context* ctx = NULL;
+int _init_context(be_Context* ctx, const be_Config* conf) {
 #if defined(_WIN32)
     HWND handle;
     HMODULE hInstance = GetModuleHandle(0);
@@ -219,16 +246,16 @@ be_Context* _create_context(const be_Config* conf) {
             _T("bit Engine"),
             NULL);
         fprintf(stderr, "Error code: %d\n", GetLastError());
-        return window;
+        return -1;
     }
 
     handle = CreateWindow(
         windowClass,
-        title,
+        conf->window.title,
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT,
-        w, h,
-        NULL, NULL, hInstance, NULL
+        conf->window.width, conf->window.height,
+        NULL, NULL, hInstance, ctx
     );
     if (!handle) {
         MessageBox(NULL,
@@ -236,8 +263,9 @@ be_Context* _create_context(const be_Config* conf) {
             _T("bit Engine"),
             NULL);
         fprintf(stderr, "Error code: %d\n", GetLastError());
-        return window;
+        return -1;
     }
+    SetWindowLongPtr(handle, GWLP_USERDATA, (LONG_PTR)ctx);
 
     HDC hdc = GetDC(handle);
 
@@ -255,7 +283,7 @@ be_Context* _create_context(const be_Config* conf) {
     HGLRC hglrc = wglCreateContext(hdc);
     wglMakeCurrent(hdc, hglrc);
 
-    ctx = malloc(sizeof(*ctx));
+    // ctx = malloc(sizeof(*ctx));
     be_Window* window = &(ctx->window);
     window->handle = handle;
     window->hInstance = hInstance;
@@ -265,10 +293,10 @@ be_Context* _create_context(const be_Config* conf) {
     ShowWindow(handle, SW_SHOWDEFAULT);
     UpdateWindow(handle);
 #elif defined(__EMSCRIPTEN__)
+    be_Window* window = &(ctx->window);
     EmscriptenWebGLContextAttributes attr;
     emscripten_webgl_init_context_attributes(&attr);
     attr.alpha = 0;
-    ctx = malloc(sizeof(*ctx));
     ctx->window.handle = emscripten_webgl_create_context("#canvas", &attr);
     emscripten_webgl_make_context_current(window->handle);
 #else
@@ -279,7 +307,7 @@ be_Context* _create_context(const be_Config* conf) {
     dpy = XOpenDisplay(NULL);
     if (dpy == NULL) {
         fprintf(stderr, "Could not open X11 display\n");
-        return ctx;
+        return -1;
     }
     scr = DefaultScreenOfDisplay(dpy);
     scrId = DefaultScreen(dpy);
@@ -289,7 +317,7 @@ be_Context* _create_context(const be_Config* conf) {
     if (majorGLX <= 1 && minorGLX < 2) {
         fprintf(stderr, "GLX 1.2 or greater is required\n");
         XCloseDisplay(dpy);
-        return ctx;
+        return -1;
     } else {
         fprintf(stdout, "GLX version: %d.%d\n", majorGLX, minorGLX);
     }
@@ -310,7 +338,7 @@ be_Context* _create_context(const be_Config* conf) {
     if (!visual) {
         fprintf(stderr, "Failed to create correct visual window\n");
         XCloseDisplay(dpy);
-        return ctx;
+        return -1;
     }
 
     XSetWindowAttributes windowAttribs;
@@ -324,17 +352,16 @@ be_Context* _create_context(const be_Config* conf) {
     if (!handle) {
         fprintf(stderr, "Failed to create X11 window\n");
         XCloseDisplay(dpy);
-        return ctx;
+        return -1;
     }
     GLXContext context = glXCreateContext(dpy, visual, NULL, GL_TRUE);
     if (!context) {
         fprintf(stderr, "Failed to create GLX context\n");
         XDestroyWindow(dpy, handle);
         XCloseDisplay(dpy);
-        return ctx;
+        return -1;
     }
     glXMakeCurrent(dpy, handle, context);
-    ctx = malloc(sizeof(*ctx));
     be_Window* window = &(ctx->window);
     window->display = dpy;
     window->handle = handle;
@@ -344,7 +371,9 @@ be_Context* _create_context(const be_Config* conf) {
     XMapRaised(dpy, handle);
     XStoreName(dpy, handle, conf->window.title);
 #endif
-    return ctx;
+    ctx->window.width = conf->window.width;
+    ctx->window.height = conf->window.height;
+    return 0;
 }
 
 void _poll_events(be_Context* ctx) {
@@ -354,6 +383,7 @@ void _poll_events(be_Context* ctx) {
         TranslateMessage(&message);
         DispatchMessage(&message);
     }
+#elif defined(__EMSCRIPTEN__)
 #else
     XEvent ev;
     be_Window* window = &(ctx->window);

@@ -79,6 +79,8 @@ typedef struct {
 #if defined(__cplusplus)
 extern "C" {
 #endif
+    
+BITE_API void bite_simple_triangle(void);
 
 /*********************
  * Core
@@ -100,6 +102,10 @@ BITE_API void bite_swap(be_Context* ctx);
 /*********************
  * Window
  *********************/
+BITE_API void bite_set_window_width(be_Context* ctx, int width);
+BITE_API void bite_set_window_height(be_Context* ctx, int height);
+BITE_API void bite_set_window_size(be_Context* ctx, int width, int height);
+
 BITE_API int bite_get_window_width(be_Context* ctx);
 BITE_API int bite_get_window_height(be_Context* ctx);
 BITE_API void bite_get_window_size(int* w, int* h);
