@@ -57,6 +57,16 @@ enum {
     BITE_EVENTS
 };
 
+enum {
+    BITEK_NONE = 0,
+    BITEK_ESCAPE,
+    BITEK_RETURN,
+    BITEK_UP,
+    BITEK_RIGHT,
+    BITEK_DOWN,
+    BITEK_LEFT
+};
+
 struct be_Window {
     int x, y;
     int width, height;

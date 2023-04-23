@@ -19,7 +19,7 @@ void bite_quit() {}
 void bite_poll_events(void) {
 #if defined(_WIN32)
     MSG message;
-    while (GetMessage(&message, NULL, 0, 0)) {
+    if (GetMessage(&message, NULL, 0, 0)) {
         TranslateMessage(&message);
         DispatchMessage(&message);
     }
@@ -92,11 +92,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         break;
         case WM_DESTROY: PostQuitMessage(0); break;
-        default: return DefWindowProc(hwnd, msg, wParam, lParam);
+        case WM_SYSKEYDOWN:
+        case WM_KEYDOWN: {
+            e.type = BITE_KEY_PRESSED;
+            e.key.keycode = (int)wParam;
+        }
+        break;
     }
     be_EventCallback fn = _callbacks[e.type];
     if (fn) fn(&e);
-    return 0;
+    return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 #else
 #endif

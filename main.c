@@ -5,7 +5,12 @@ be_Window* wnd;
 static int running = 1;
 
 void key_pressed(be_Event* ev) {
+    printf("Pressed: %x\n", ev->key.keycode);
+#if defined(_WIN32)
+    if (ev->key.keycode == VK_ESCAPE) running = 0;
+#else
     if (ev->key.keycode == 0x09) running = 0;
+#endif
 }
 
 void quit_callback(be_Event* ev) {
