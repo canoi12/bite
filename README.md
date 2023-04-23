@@ -13,4 +13,4 @@ Inicialmente quero focar no desktop pra aprender como funciona, e também pra we
 
 Formatos suportados obviamente vão ser os mais simples de se ler: `.bmp` para imagens e `.wav` para áudios. Alguns que também são relativamente fáceis de implementar são `.json` e `.tar`, mas fica pra depois.
 
-A ideia é ser uma parada mais simples mesmo, só com o básico, se quer algo mais completo e que também seja multiplataforma tem outras que tão no mercado aí pra isso ([SDL2](https://libsdl.org) e [GLFW]https://glfw.org))
+A ideia é ser uma parada mais simples mesmo, só com o básico, se quer algo mais completo e que também seja multiplataforma tem outras que tão no mercado aí pra isso ([SDL2](https://libsdl.org) e [GLFW](https://glfw.org) por exemplo).
