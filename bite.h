@@ -13,6 +13,8 @@ typedef unsigned short be_u16;
 typedef unsigned int be_u32;
 typedef unsigned long int be_u64;
 
+typedef struct {float x, y, w, h; } be_Rect;
+
 typedef struct be_Context be_Context;
 
 typedef struct be_Window be_Window;
@@ -24,6 +26,15 @@ typedef struct be_Shader be_Shader;
 typedef struct be_Font be_Font;
 
 typedef void(*be_EventCallback)(be_Context*, be_Event*);
+
+#define BITE_TRUE  1
+#define BITE_FALSE 0
+
+#define BITE_OK 0
+#define BITE_ERROR -1
+
+#define BITE_RESULT int
+#define BITE_BOOL be_u8
 
 enum {
     BITE_NONE = 0,
@@ -50,6 +61,12 @@ enum {
     BITEK_RIGHT,
     BITEK_DOWN,
     BITEK_LEFT
+};
+
+enum {
+    BITE_POINTS = 0,
+    BITE_LINES,
+    BITE_TRIANGLES
 };
 
 struct be_Event {
@@ -92,7 +109,7 @@ BITE_API void bite_destroy(be_Context* ctx);
 
 BITE_API void bite_register_callback(be_Context* ctx, int type, be_EventCallback callback);
 
-BITE_API int bite_should_close(be_Context* ctx);
+BITE_API BITE_BOOL bite_should_close(be_Context* ctx);
 BITE_API void bite_set_should_close(be_Context* ctx, int should_close);
 
 BITE_API void bite_poll_events(be_Context* ctx);
@@ -116,7 +133,31 @@ BITE_API void bite_get_mouse_pos(int* x, int* y);
  * Render
  *********************/
 
+BITE_API be_Shader* bite_create_shader(const char* vert, const char* src);
+BITE_API void bite_destroy_shader(be_Shader* shader);
+
+BITE_API be_Texture* bite_create_texture(int w, int h, int format, void* data);
+BITE_API void bite_destroy_texture(be_Texture* texture);
+
+BITE_API be_Framebuffer* bite_create_framebuffer(void);
+BITE_API void bite_destroy_framebuffer(be_Framebuffer* fbo);
+BITE_API BITE_RESULT bite_framebuffer_attach_texture(be_Framebuffer* fbo, be_Texture* texture);
+
+BITE_API void bite_render_clear_color(float r, float g, float b, float a);
 BITE_API void bite_render_clear(void);
+
+BITE_API void bite_bind_framebuffer(be_Framebuffer* fbo);
+BITE_API void bite_bind_texture(be_Texture* tex);
+BITE_API void bite_use_shader(be_Shader* shader);
+
+BITE_API void bite_render_point(float x, float y);
+BITE_API void bite_render_line(float x0, float y0, float x1, float y1);
+BITE_API void bite_render_rect(be_Rect* rect);
+BITE_API void bite_render_rectangle(float x, float y, float w, float h);
+BITE_API void bite_render_circle(float x, float y, float radius);
+BITE_API void bite_render_triangle(float x0, float y0, float x1, float y1, float x2, float y2);
+
+BITE_API void bite_render_texture(be_Texture* tex, be_Rect* src, be_Rect* dest);
 
 /*********************
  * Timer

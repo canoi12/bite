@@ -49,6 +49,14 @@ struct be_Context {
 
 static be_Context _context;
 
+static const be_Config _conf = {
+    .window = {
+        .title = "bitEngine "BITE_VERSION,
+        .width = 640, .height = 380,
+        .flags = 0
+    }
+};
+
 int _init_context(be_Context* ctx, const be_Config* conf);
 void _poll_events(be_Context* ctx);
 
@@ -99,7 +107,8 @@ void bite_simple_triangle(void) {
 
 be_Config bite_init_config(const char* title, int w, int h) {
     be_Config c = {0};
-    title = title != NULL ? title : "bitEngine";
+    title = title != NULL ? title : "bitEngine "BITE_VERSION;
+    int len = strlen(title);
     strcpy(c.window.title, title);
     c.window.width = w;
     c.window.height = h;
@@ -107,6 +116,7 @@ be_Config bite_init_config(const char* title, int w, int h) {
 }
 
 be_Context* bite_create(const be_Config* conf) {
+    conf = conf ? conf : &(_conf);
     be_Context* ctx = malloc(sizeof(*ctx));
     if (!ctx) {
         fprintf(stderr, "Failed to alloc memory for context\n");
@@ -187,6 +197,71 @@ int bite_get_window_width(be_Context* ctx) {
     return ctx->window.width;
 }
 
+/*********************
+ * Render
+ *********************/
+
+static GLuint _create_program(GLuint vert, GLuint frag) {
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vert);
+    glAttachShader(program, frag);
+    glLinkProgram(program);
+    
+    int success;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {}
+
+    return program;
+}
+
+be_Shader* bite_create_shader(const char* vert, const char* frag) {
+    be_Shader* shader = NULL;
+    GLuint program;
+    GLuint vert, frag;
+
+    return shader;
+}
+
+void bite_render_clear_color(float r, float g, float b, float a) {
+glClearColor(r, g, b, a);
+}
+
+void bite_render_clear(void) {
+glClear(GL_COLOR_BUFFER_BIT);
+}
+
+struct be_Texture {
+GLuint handle;
+int width, height;
+int filter[2];
+int wrap[2];
+};
+ 
+ struct be_Framebuffer {
+    GLuint handle;
+    be_Texture* texture;
+ };
+ 
+ struct be_Shader {
+    GLuint handle;
+    int world_uniform;
+    int modelview_uniform;
+ };
+ 
+ void bite_bind_framebuffer(be_Framebuffer* fbo) {
+    if (!fbo) glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    else glBindFramebuffer(GL_FRAMEBUFFER, fbo->handle);
+ }
+ 
+ void bite_bind_texture(be_Texture* tex) {
+    if (!tex) glBindTexture(GL_TEXTURE_2D, 0);
+    else glBindTexture(GL_TEXTURE_2D, tex->handle);
+ }
+ 
+ void bite_use_shader(be_Shader* shader) {
+    if (!shader) glUseProgram(0);
+    else glUseProgram(shader->handle);
+ }
 
 /*********************
  * Timer
