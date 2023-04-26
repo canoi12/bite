@@ -109,7 +109,7 @@ BITE_API void bite_destroy(be_Context* ctx);
 
 BITE_API void bite_register_callback(be_Context* ctx, int type, be_EventCallback callback);
 
-BITE_API BITE_BOOL bite_should_close(be_Context* ctx);
+BITE_API int bite_should_close(be_Context* ctx);
 BITE_API void bite_set_should_close(be_Context* ctx, int should_close);
 
 BITE_API void bite_poll_events(be_Context* ctx);
