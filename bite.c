@@ -908,8 +908,8 @@ BITE_RESULT _init_render(be_Render* render, const be_Window* window, const be_Co
     }
 
     int gl_attribs[] = {
-        WGL_CONTEXT_MAJOR_VERSION_ARB, 2,
-        WGL_CONTEXT_MINOR_VERSION_ARB, 1,
+        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 0,
         WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
         0, 0
     };
@@ -1269,6 +1269,7 @@ BITE_RESULT _load_gl(void) {
         fprintf(stderr, "Failed to load OpenGL32.dll\n");
         return BITE_ERROR;
     }
+    _proc_address = (void*(*)(const char*))GetProcAddress(_gl_sym, "wglGetProcAddress");
 #else
     #if defined(__APPLE__)
         const char *names[] = {
@@ -1337,7 +1338,7 @@ void _setup_gl(void) {
         }
     }
     
-    fprintf(stdout, "OpenGL: %s\n", version);
+    fprintf(stderr, "OpenGL: %s\n", version);
 
     GET_GL_PROC(glGenVertexArrays);
     GET_GL_PROC(glBindVertexArray);
@@ -1393,5 +1394,6 @@ static inline void* _get_proc(const char* name) {
         sym = (void*)dlsym(_gl_sym, name);
 #endif
     }
+    fprintf(stderr, "%s: %p\n", name, sym);
     return sym;
 }
