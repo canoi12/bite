@@ -33,6 +33,9 @@ struct be_Window {
 #else
     Display* display;
     Window handle;
+    Colormap map;
+
+    GLXFBConfig fbconf;
 #endif
 };
 
@@ -91,6 +94,9 @@ wglChoosePixelFormatARBProc *wglChoosePixelFormatARB;
 #define WGL_FULL_ACCELERATION_ARB                 0x2027
 #define WGL_TYPE_RGBA_ARB                         0x202B
 #else
+typedef GLXContext (*glXCreateContextAttribsARBProc)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
+#define GLX_CONTEXT_MAJOR_VERSION_ARB       0x2091
+#define GLX_CONTEXT_MINOR_VERSION_ARB       0x2092
 #endif
 
 #define DEFINE_GL(ret, name, ...)\
@@ -579,6 +585,34 @@ static void init_opengl_extensions(void) {
     ReleaseDC(dummy_window, dummy_dc);
     DestroyWindow(dummy_window);
 }
+#else
+static BITE_BOOL is_extension_supported(const char *extList, const char *extension) {
+  const char *start;
+  const char *where, *terminator;
+  
+  /* Extension names should not have spaces. */
+  where = strchr(extension, ' ');
+  if (where || *extension == '\0')
+    return BITE_FALSE;
+
+  /* It takes a bit of care to be fool-proof about parsing the
+     OpenGL extensions string. Don't be fooled by sub-strings,
+     etc. */
+  for (start=extList;;) {
+    where = strstr(start, extension);
+
+    if (!where)
+      break;
+
+    terminator = where + strlen(extension);
+
+    if ( where == start || *(where - 1) == ' ' )
+      if ( *terminator == ' ' || *terminator == '\0' )
+        return BITE_TRUE;
+
+    start = terminator;
+  }
+}
 #endif
 
 BITE_RESULT _init_context(be_Context* ctx, const be_Config* conf) {
@@ -638,6 +672,104 @@ BITE_RESULT _init_window(be_Window* window, const be_Config* conf) {
 
     ShowWindow(handle, SW_SHOWDEFAULT);
     UpdateWindow(handle);
+#elif (__EMSCRIPTEN__)
+#else
+    Display* dpy;
+    Window handle;
+    dpy = XOpenDisplay(NULL);
+    if (dpy == NULL) {
+        fprintf(stderr, "Could not open X11 display\n");
+        return BITE_ERROR;
+    }
+    int scrId = DefaultScreen(dpy);
+
+    static int visual_attribs[] =
+    {
+      GLX_X_RENDERABLE    , True,
+      GLX_DRAWABLE_TYPE   , GLX_WINDOW_BIT,
+      GLX_RENDER_TYPE     , GLX_RGBA_BIT,
+      GLX_X_VISUAL_TYPE   , GLX_TRUE_COLOR,
+      GLX_RED_SIZE        , 8,
+      GLX_GREEN_SIZE      , 8,
+      GLX_BLUE_SIZE       , 8,
+      GLX_ALPHA_SIZE      , 8,
+      GLX_DEPTH_SIZE      , 24,
+      GLX_STENCIL_SIZE    , 8,
+      GLX_DOUBLEBUFFER    , True,
+      //GLX_SAMPLE_BUFFERS  , 1,
+      //GLX_SAMPLES         , 4,
+      None
+    };
+
+    GLint major, minor;
+    glXQueryVersion(dpy, &major, &minor);
+    if ((major == 1 && minor < 3) || (major < 1)) {
+        fprintf(stderr, "Invalid GLX version\n");
+        XCloseDisplay(dpy);
+        return BITE_ERROR;
+    }
+
+    int fbcount;
+    GLXFBConfig* fbc = glXChooseFBConfig(dpy, scrId, visual_attribs, &fbcount);
+    if (!fbc) {
+        fprintf(stderr, "Failed to retrieve a framebuffer config\n");
+        return BITE_ERROR;
+    }
+
+    int best_fbc = -1, worst_fbc = -1, best_num_samp = -1, worst_num_samp = 999;
+
+    int i;
+    for (i=0; i<fbcount; ++i) {
+        XVisualInfo *vi = glXGetVisualFromFBConfig(dpy, fbc[i]);
+        if ( vi )
+        {
+            int samp_buf, samples;
+            glXGetFBConfigAttrib(dpy, fbc[i], GLX_SAMPLE_BUFFERS, &samp_buf);
+            glXGetFBConfigAttrib(dpy, fbc[i], GLX_SAMPLES, &samples);
+            
+            // printf( "  Matching fbconfig %d, visual ID 0x%2x: SAMPLE_BUFFERS = %d,"
+            //         " SAMPLES = %d\n", 
+            //         i, vi -> visualid, samp_buf, samples );
+
+            if ( best_fbc < 0 || samp_buf && samples > best_num_samp )
+            best_fbc = i, best_num_samp = samples;
+            if ( worst_fbc < 0 || !samp_buf || samples < worst_num_samp )
+            worst_fbc = i, worst_num_samp = samples;
+        }
+        XFree( vi );
+    }
+    GLXFBConfig bestFbc = fbc[best_fbc];
+    XFree(fbc);
+
+    XVisualInfo* vi = glXGetVisualFromFBConfig(dpy, bestFbc);
+    XSetWindowAttributes swa;
+    Colormap map;
+    swa.colormap = XCreateColormap(dpy, RootWindow(dpy, vi->screen), vi->visual, AllocNone);
+    swa.background_pixmap = None;
+    swa.border_pixel = 0;
+    swa.event_mask = ExposureMask | StructureNotifyMask;
+
+    handle = XCreateWindow(
+        dpy, RootWindow(dpy, vi->screen),
+        0, 0, conf->window.width, conf->window.height,
+        0, vi->depth, InputOutput,
+        vi->visual,
+        CWBorderPixel | CWColormap | CWEventMask, &swa
+    );
+
+    if (!handle) {
+        fprintf(stderr, "Failed to create X11 window\n");
+        return BITE_ERROR;
+    }
+
+    XFree(vi);
+    XStoreName(dpy, handle, conf->window.title);
+    XMapWindow(dpy, handle);
+
+    window->handle = handle;
+    window->display = dpy;
+    window->map = swa.colormap;
+    window->fbconf = bestFbc;
 #endif
     window->width = conf->window.width;
     window->height = conf->window.height;
@@ -721,6 +853,46 @@ BITE_RESULT _init_render(be_Render* render, const be_Window* window, const be_Co
     _close_gl();
 #elif defined(__EMSCRIPTEN__)
 #else
+    Display* dpy = window->display;
+    int scrId = DefaultScreen(dpy);
+    const char* glxExts = glXQueryExtensionsString(dpy, scrId);
+    glXCreateContextAttribsARBProc glXCreateContextAttribsARB = 0;
+    glXCreateContextAttribsARB = (glXCreateContextAttribsARBProc)glXGetProcAddressARB((const GLubyte*)"glXCreateContextAttribsARB");
+
+    GLXContext ctx = 0;
+
+    if (!glXCreateContextAttribsARB) {
+        fprintf(stderr, "Failed to load glXCreateContextAttribsARB(), loading legacy OpenGL context\n");
+        ctx = glXCreateNewContext(dpy, window->fbconf, GLX_RGBA_TYPE, 0, True);
+    } else {
+        int context_attribs[] = {
+            GLX_CONTEXT_MAJOR_VERSION_ARB, 2,
+            GLX_CONTEXT_MINOR_VERSION_ARB, 1,
+            GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+            None
+        };
+
+        ctx = glXCreateContextAttribsARB(dpy, window->fbconf, 0, True, context_attribs);
+        XSync(dpy, False);
+        if (!ctx) {
+            fprintf(stderr, "Failed to create 3.0 OpenGL context\n");
+            XDestroyWindow(dpy, window->handle);
+            XFreeColormap(dpy, window->map);
+            XCloseDisplay(dpy);
+            return BITE_ERROR;
+        }
+        glXMakeCurrent(dpy, window->handle, ctx);
+        render->gl_context = ctx;
+        if (_load_gl() != BITE_OK) {
+            fprintf(stderr, "Failed to init OpenGL loader\n");
+            XDestroyWindow(dpy, window->handle);
+            XFreeColormap(dpy, window->map);
+            XCloseDisplay(dpy);
+            return BITE_ERROR;
+        }
+    _setup_gl();
+    _close_gl();
+    }
 #endif
     return BITE_OK;
 }
@@ -1027,7 +1199,7 @@ BITE_RESULT _load_gl(void) {
     #if defined(__APPLE__) || defined(__HAIKU__)
                 return BITE_OK;
     #else
-                _proc_address = (void*(*)(const i8*))dlsym(_gl_sym, "glXGetProcAddress");
+                _proc_address = (void*(*)(const char*))dlsym(_gl_sym, "glXGetProcAddress");
                 return _proc_address != NULL ? BITE_OK : BITE_ERROR;
     #endif
                 break;
@@ -1098,6 +1270,8 @@ void _setup_gl(void) {
     GET_GL_PROC(glLinkProgram);
     GET_GL_PROC(glGetProgramiv);
     GET_GL_PROC(glGetProgramInfoLog);
+
+    fprintf(stdout, "glCreateProgram: %p\n", glCreateProgram);
 }
 
 BITE_BOOL _load_procs(void) {
