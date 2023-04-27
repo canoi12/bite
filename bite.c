@@ -683,6 +683,9 @@ static BITE_BOOL is_extension_supported(const char *extList, const char *extensi
 
 BITE_RESULT _init_context(be_Context* ctx, const be_Config* conf) {
     if (_init_window(&(ctx->window), conf) != BITE_OK) return BITE_ERROR;
+#if defined(_WIN32)
+    SetWindowLongPtr(ctx->window.handle, GWLP_USERDATA, (LONG_PTR)ctx);
+#endif
     if (_init_render(&(ctx->render), &(ctx->window), conf) != BITE_OK) return BITE_ERROR;
     be_Render* render = &(ctx->render);
     glGenVertexArrays(1, &(render->vao));
@@ -754,7 +757,6 @@ BITE_RESULT _init_window(be_Window* window, const be_Config* conf) {
         );
         return BITE_ERROR;
     }
-    SetWindowLongPtr(handle, GWLP_USERDATA, (LONG_PTR)window);
     window->handle = handle;
     window->dev_context = GetDC(handle);
 
