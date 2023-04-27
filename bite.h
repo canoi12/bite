@@ -97,7 +97,7 @@ typedef struct {
 extern "C" {
 #endif
     
-BITE_API void bite_simple_triangle(void);
+BITE_API void bite_simple_triangle(be_Context* ctx);
 
 /*********************
  * Core

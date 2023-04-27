@@ -4,7 +4,27 @@
     #include <emscripten.h>
 #endif
 
+const char* vert =
+"#version 140\n"
+"in vec2 a_Position;\n"
+"in vec4 a_Color;\n"
+"out vec4 v_Color;\n"
+"void main() {\n"
+"   gl_Position = vec4(a_Position.x, a_Position.y, 0, 1.0);\n"
+"   v_Color = a_Color;\n"
+"}";
+
+const char* frag =
+"#version 140\n"
+"in vec4 v_Color;\n"
+"out vec4 o_FragColor;\n"
+"void main() {"
+"   o_FragColor = v_Color;\n"
+"}";
+
 // #include <GL/gl.h>
+be_Texture* tex;
+be_Shader* shader;
 
 void key_pressed(be_Context* ctx, be_Event* ev) {
     printf("Pressed: %x\n", ev->key.keycode);
@@ -19,13 +39,18 @@ void main_loop(void* data) {
     // printf("Entering render function\n");
     be_Context* ctx = (be_Context*)data;
     bite_poll_events(ctx);
-    bite_simple_triangle();
+    bite_use_shader(shader);
+    bite_simple_triangle(ctx);
+    bite_use_shader(NULL);
     bite_swap(ctx);
 }
 
 int main(int argc, char** argv) {
     be_Config c = bite_init_config("bitEngine", 640, 380);
     be_Context* ctx = bite_create(&c);
+    be_u8 pixels[] = {255, 255, 255, 255};
+    tex = bite_create_texture(1, 1, 0, pixels);
+    shader = bite_create_shader(vert, frag);
 #if defined(__EMSCRIPTEN__)
     emscripten_set_main_loop_arg(main_loop, ctx, 0, 1);
 #else

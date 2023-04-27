@@ -23,6 +23,23 @@
     #include <time.h>
 #endif
 
+struct be_Shader {
+    GLuint handle;
+    GLint world_uniform, modelview_uniform;
+};
+
+struct be_Texture {
+    GLuint handle;
+    int width, height;
+    int filter[2];
+    int wrap[2];
+};
+
+struct be_Framebuffer {
+    GLuint handle;
+    be_Texture texture;
+};
+
 struct be_Window {
     int x, y;
     int width, height;
@@ -48,7 +65,9 @@ struct be_Render {
 #else
     GLXContext gl_context;
 #endif
+
     int mode;
+    GLuint vao, vbo;
 };
 
 struct be_Context {
@@ -210,6 +229,7 @@ DEFINE_GL(void, glLinkProgram, GLuint); // glLinkProgram
 DEFINE_GL(void, glGetProgramiv, GLuint, GLenum, GLint*); // glGetProgramiv
 DEFINE_GL(void, glGetProgramInfoLog, GLuint, GLsizei, GLsizei*, char*); // glGetProgramInfoLog
 DEFINE_GL(void, glUseProgram, GLuint); // glUseProgram
+DEFINE_GL(void, glDeleteProgram, GLuint); // glUseProgram
 
 DEFINE_GL(void, glGetActiveUniform, GLuint, GLuint, GLint, GLint*, GLint*, GLint*, char*);
 DEFINE_GL(GLint, glGetUniformLocation, GLuint, const char*);
@@ -296,17 +316,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 #endif
 
-void bite_simple_triangle(void) {
+void bite_simple_triangle(be_Context* ctx) {
     glClearColor(0.3f, 0.4f, 0.4f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT);
-    glBegin(GL_TRIANGLES);
-    glColor3f(1.f, 0.f, 0.f);
-    glVertex2f(0.f, 0.5f);
-    glColor3f(0.f, 1.f, 0.f);
-    glVertex2f(-0.5f, -0.5f);
-    glColor3f(0.f, 0.f, 1.f);
-    glVertex2f(0.5f, -0.5f);
-    glEnd();
+    // fprintf(stdout, "VAO: %d\n", ctx->render.vao);
+    glBindVertexArray(ctx->render.vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+    // glBegin(GL_TRIANGLES);
+    // glColor3f(1.f, 0.f, 0.f);
+    // glVertex2f(0.f, 0.5f);
+    // glColor3f(0.f, 1.f, 0.f);
+    // glVertex2f(-0.5f, -0.5f);
+    // glColor3f(0.f, 0.f, 1.f);
+    // glVertex2f(0.5f, -0.5f);
+    // glEnd();
 }
 
 be_Config bite_init_config(const char* title, int w, int h) {
@@ -412,8 +436,26 @@ int bite_get_window_width(be_Context* ctx) {
  * Render
  *********************/
 
+static GLuint _compile_shader(GLenum type, const char* src) {
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &src, NULL);
+    glCompileShader(shader);
+
+    int success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char info_log[512];
+        glGetShaderInfoLog(shader, 512, NULL, info_log);
+        fprintf(stderr, "Failed to compile shader: %s\n", info_log);
+        glDeleteShader(shader);
+        return 0;
+    }
+
+    return shader;
+}
+
 static GLuint _create_program(GLuint vert, GLuint frag) {
-#if 0
+#if 1
     GLuint program = glCreateProgram();
     glAttachShader(program, vert);
     glAttachShader(program, frag);
@@ -421,15 +463,57 @@ static GLuint _create_program(GLuint vert, GLuint frag) {
     
     int success;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
-    if (!success) {}
+    if (!success) {
+        char info_log[512];
+        glGetProgramInfoLog(program, 512, NULL, info_log);
+        fprintf(stderr, "Failed to link program: %s\n", info_log);
+        glDeleteProgram(program);
+        return 0;
+    }
 
     return program;
 #endif
     return 0;
 }
 
-be_Shader* bite_create_shader(const char* vert, const char* frag) {
+be_Texture* bite_create_texture(int width, int height, int format, void* data) {
+    be_Texture* texture = (be_Texture*)malloc(sizeof(*texture));
+    if (!texture) {
+        fprintf(stderr, "Failed to alloc memory for texture\n");
+        return NULL;
+    }
+    texture->filter[0] = GL_NEAREST;
+    texture->filter[1] = GL_NEAREST;
+    texture->wrap[0] = GL_CLAMP_TO_BORDER;
+    texture->wrap[1] = GL_CLAMP_TO_BORDER;
+    texture->width = width;
+    texture->height = height;
+
+    glGenTextures(1, &(texture->handle));
+    glBindTexture(GL_TEXTURE_2D, texture->handle);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texture->filter[0]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texture->filter[1]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture->wrap[0]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture->wrap[1]);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return texture;
+}
+
+be_Shader* bite_create_shader(const char* vert_src, const char* frag_src) {
     be_Shader* shader = NULL;
+    GLuint vert, frag;
+    vert = _compile_shader(GL_VERTEX_SHADER, vert_src);
+    if (vert <= 0) return shader;
+    frag = _compile_shader(GL_FRAGMENT_SHADER, frag_src);
+    if (frag <= 0) return shader;
+
+    GLuint program = _create_program(vert, frag);
+    if (program <= 0) return shader;
+    shader = malloc(sizeof(*shader));
+    shader->handle = program;
+
     return shader;
 }
 
@@ -440,24 +524,6 @@ void bite_render_clear_color(float r, float g, float b, float a) {
 void bite_render_clear(void) {
     glClear(GL_COLOR_BUFFER_BIT);
 }
-
-struct be_Texture {
-    GLuint handle;
-    int width, height;
-    int filter[2];
-    int wrap[2];
-};
-
-struct be_Framebuffer {
-    GLuint handle;
-    be_Texture* texture;
-};
-
-struct be_Shader {
-    GLuint handle;
-    int world_uniform;
-    int modelview_uniform;
-};
 
 void bite_bind_framebuffer(be_Framebuffer* fbo) {
 #if 0
@@ -618,6 +684,28 @@ static BITE_BOOL is_extension_supported(const char *extList, const char *extensi
 BITE_RESULT _init_context(be_Context* ctx, const be_Config* conf) {
     if (_init_window(&(ctx->window), conf) != BITE_OK) return BITE_ERROR;
     if (_init_render(&(ctx->render), &(ctx->window), conf) != BITE_OK) return BITE_ERROR;
+    be_Render* render = &(ctx->render);
+    glGenVertexArrays(1, &(render->vao));
+    glGenBuffers(1, &(render->vbo));
+
+    float vertices[] = {
+        0.f, 0.5f, 1.f, 0.f, 0.f,
+        -0.5f, -0.5f, 0.f, 1.f, 0.f,
+        0.5f, -0.5f, 0.f, 0.f, 1.f
+    };
+
+    glBindVertexArray(render->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, render->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(2 * sizeof(float)));
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+
     return BITE_OK;
 }
 
@@ -1270,13 +1358,14 @@ void _setup_gl(void) {
     GET_GL_PROC(glCompileShader);
     GET_GL_PROC(glGetShaderiv);
     GET_GL_PROC(glGetShaderInfoLog);
+    GET_GL_PROC(glDeleteShader);
     GET_GL_PROC(glCreateProgram);
     GET_GL_PROC(glAttachShader);
     GET_GL_PROC(glLinkProgram);
     GET_GL_PROC(glGetProgramiv);
     GET_GL_PROC(glGetProgramInfoLog);
-
-    fprintf(stdout, "glCreateProgram: %p\n", glCreateProgram);
+    GET_GL_PROC(glUseProgram);
+    GET_GL_PROC(glDeleteProgram);
 }
 
 BITE_BOOL _load_procs(void) {
