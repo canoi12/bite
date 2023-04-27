@@ -8,17 +8,17 @@
     #include <tchar.h>
     #include <gl/GL.h>
     #include <gl/GLU.h>
+#elif defined(__EMSCRIPTEN__)
+    #include <emscripten.h>
+    #include <emscripten/html5.h>
+    #include <GLES2/gl2.h>
+    #include <time.h>
 #else
-    #if defined(__EMSCRIPTEN__)
-        #include <emscripten.h>
-        #include <emscripten/html5.h>
-    #else
-        #include <unistd.h>
-        #include <X11/Xlib.h>
-        #include <X11/Xutil.h>
-        #include <GL/glx.h>
-        #include <dlfcn.h>
-    #endif
+    #include <unistd.h>
+    #include <X11/Xlib.h>
+    #include <X11/Xutil.h>
+    #include <GL/glx.h>
+    #include <dlfcn.h>
     #include <GL/gl.h>
     #include <time.h>
 #endif
@@ -112,6 +112,7 @@ wglChoosePixelFormatARBProc *wglChoosePixelFormatARB;
 
 #define WGL_FULL_ACCELERATION_ARB                 0x2027
 #define WGL_TYPE_RGBA_ARB                         0x202B
+#elif defined(__EMSCRIPTEN__)
 #else
 typedef GLXContext (*glXCreateContextAttribsARBProc)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
 #define GLX_CONTEXT_MAJOR_VERSION_ARB       0x2091
@@ -320,9 +321,17 @@ void bite_simple_triangle(be_Context* ctx) {
     glClearColor(0.3f, 0.4f, 0.4f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT);
     // fprintf(stdout, "VAO: %d\n", ctx->render.vao);
+#if !defined(__EMSCRIPTEN__)
     glBindVertexArray(ctx->render.vao);
+#else
+    glBindBuffer(GL_ARRAY_BUFFER, ctx->render.vbo);
+#endif
     glDrawArrays(GL_TRIANGLES, 0, 3);
+#if !defined(__EMSCRIPTEN__)
     glBindVertexArray(0);
+#else
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+#endif
     // glBegin(GL_TRIANGLES);
     // glColor3f(1.f, 0.f, 0.f);
     // glVertex2f(0.f, 0.5f);
@@ -377,7 +386,7 @@ void bite_destroy(be_Context* ctx) {
     ReleaseDC(window->handle, window->dev_context);
     DestroyWindow(window->handle);
 #elif defined(__EMSCRIPTEN__)
-    emscripten_webgl_destroy_context(window->handle);
+    emscripten_webgl_destroy_context(render->gl_context);
 #else
     glXDestroyContext(window->display, render->gl_context);
     XDestroyWindow(window->display, window->handle);
@@ -484,8 +493,8 @@ be_Texture* bite_create_texture(int width, int height, int format, void* data) {
     }
     texture->filter[0] = GL_NEAREST;
     texture->filter[1] = GL_NEAREST;
-    texture->wrap[0] = GL_CLAMP_TO_BORDER;
-    texture->wrap[1] = GL_CLAMP_TO_BORDER;
+    texture->wrap[0] = GL_CLAMP_TO_EDGE;
+    texture->wrap[1] = GL_CLAMP_TO_EDGE;
     texture->width = width;
     texture->height = height;
 
@@ -688,8 +697,6 @@ BITE_RESULT _init_context(be_Context* ctx, const be_Config* conf) {
 #endif
     if (_init_render(&(ctx->render), &(ctx->window), conf) != BITE_OK) return BITE_ERROR;
     be_Render* render = &(ctx->render);
-    glGenVertexArrays(1, &(render->vao));
-    glGenBuffers(1, &(render->vbo));
 
     float vertices[] = {
         0.f, 0.5f, 1.f, 0.f, 0.f,
@@ -697,7 +704,11 @@ BITE_RESULT _init_context(be_Context* ctx, const be_Config* conf) {
         0.5f, -0.5f, 0.f, 0.f, 1.f
     };
 
+#if !defined(__EMSCRIPTEN__)
+    glGenVertexArrays(1, &(render->vao));
     glBindVertexArray(render->vao);
+#endif
+    glGenBuffers(1, &(render->vbo));
     glBindBuffer(GL_ARRAY_BUFFER, render->vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
@@ -706,7 +717,9 @@ BITE_RESULT _init_context(be_Context* ctx, const be_Config* conf) {
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)0);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)(2 * sizeof(float)));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+#if !defined(__EMSCRIPTEN__)
     glBindVertexArray(0);
+#endif
 
 
     return BITE_OK;
@@ -945,8 +958,8 @@ BITE_RESULT _init_render(be_Render* render, const be_Window* window, const be_Co
     EmscriptenWebGLContextAttributes attr;
     emscripten_webgl_init_context_attributes(&attr);
     attr.alpha = 0;
-    ctx->window.handle = emscripten_webgl_create_context("#canvas", &attr);
-    emscripten_webgl_make_context_current(window->handle);
+    render->gl_context = emscripten_webgl_create_context("#canvas", &attr);
+    emscripten_webgl_make_context_current(render->gl_context);
 #else
     Display* dpy = window->display;
     int scrId = DefaultScreen(dpy);
@@ -1272,6 +1285,7 @@ BITE_RESULT _load_gl(void) {
         return BITE_ERROR;
     }
     _proc_address = (void*(*)(const char*))GetProcAddress(_gl_sym, "wglGetProcAddress");
+#elif defined(__EMSCRIPTEN__)
 #else
     #if defined(__APPLE__)
         const char *names[] = {
@@ -1305,11 +1319,11 @@ BITE_RESULT _load_gl(void) {
     return BITE_OK;
 }
 
+#if !defined(__EMSCRIPTEN__)
 void _close_gl(void) {
     if (_gl_sym != NULL) {
 #if defined(_WIN32)
         FreeLibrary(_gl_sym);
-#elif defined(__EMSCRIPTEN_)
 #else
         dlclose(_gl_sym);
 #endif
@@ -1371,18 +1385,6 @@ void _setup_gl(void) {
     GET_GL_PROC(glDeleteProgram);
 }
 
-BITE_BOOL _load_procs(void) {
-    // GET_GL_PROC(glClear);
-    // GET_GL_PROC(glClearColor);
-    // GET_GL_PROC(glViewport);
-
-    
-
-    // GET_GL_PROC(glDrawArrays);
-
-    return BITE_TRUE;
-}
-
 static inline void* _get_proc(const char* name) {
     void* sym = NULL;
     if (_gl_sym == NULL) return sym;
@@ -1399,3 +1401,4 @@ static inline void* _get_proc(const char* name) {
     fprintf(stderr, "%s: %p\n", name, sym);
     return sym;
 }
+#endif

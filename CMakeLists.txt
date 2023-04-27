@@ -4,7 +4,7 @@ project(bite VERSION 0.1.0 LANGUAGES C)
 message("Compiling for ${CMAKE_SYSTEM_NAME}")
 
 if (CMAKE_SYSTEM_NAME MATCHES "Emscripten")
-    set(USE_FLAGS "-s EXPORTED_FUNCTIONS=\"['_malloc']\"")
+    set(USE_FLAGS "-sFULL_ES2 -s EXPORTED_FUNCTIONS=\"['_malloc']\"")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS}")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${USE_FLAGS}")
     set(CMAKE_EXECUTABLE_SUFFIX .js)
