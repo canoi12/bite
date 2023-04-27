@@ -852,6 +852,11 @@ BITE_RESULT _init_render(be_Render* render, const be_Window* window, const be_Co
     _setup_gl();
     _close_gl();
 #elif defined(__EMSCRIPTEN__)
+    EmscriptenWebGLContextAttributes attr;
+    emscripten_webgl_init_context_attributes(&attr);
+    attr.alpha = 0;
+    ctx->window.handle = emscripten_webgl_create_context("#canvas", &attr);
+    emscripten_webgl_make_context_current(window->handle);
 #else
     Display* dpy = window->display;
     int scrId = DefaultScreen(dpy);
