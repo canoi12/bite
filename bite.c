@@ -687,6 +687,7 @@ static BITE_BOOL is_extension_supported(const char *extList, const char *extensi
 
     start = terminator;
   }
+  return BITE_FALSE;
 }
 #endif
 
@@ -699,9 +700,9 @@ BITE_RESULT _init_context(be_Context* ctx, const be_Config* conf) {
     be_Render* render = &(ctx->render);
 
     float vertices[] = {
-        0.f, 0.5f, 1.f, 0.f, 0.f,
-        -0.5f, -0.5f, 0.f, 1.f, 0.f,
-        0.5f, -0.5f, 0.f, 0.f, 1.f
+        0.f, 0.5f, 1.f, 0.f, 0.f, 1.f,
+        -0.5f, -0.5f, 0.f, 1.f, 0.f, 1.f,
+        0.5f, -0.5f, 0.f, 0.f, 1.f, 1.f
     };
 
 #if !defined(__EMSCRIPTEN__)
@@ -714,14 +715,12 @@ BITE_RESULT _init_context(be_Context* ctx, const be_Config* conf) {
 
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)0);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 5*sizeof(float), (void*)(2 * sizeof(float)));
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(2 * sizeof(float)));
+    // glBindBuffer(GL_ARRAY_BUFFER, 0);
 #if !defined(__EMSCRIPTEN__)
     glBindVertexArray(0);
 #endif
-
-
     return BITE_OK;
 }
 

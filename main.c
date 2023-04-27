@@ -5,19 +5,33 @@
 #endif
 
 const char* vert =
+#if defined(__EMSCRIPTEN__)
+"#version 100\n"
+"attribute vec2 a_Position;\n"
+"attribute vec4 a_Color;\n"
+"varying vec4 v_Color;\n"
+#else
 "#version 140\n"
 "in vec2 a_Position;\n"
 "in vec4 a_Color;\n"
 "out vec4 v_Color;\n"
+#endif
 "void main() {\n"
 "   gl_Position = vec4(a_Position.x, a_Position.y, 0, 1.0);\n"
 "   v_Color = a_Color;\n"
 "}";
 
 const char* frag =
+#if defined(__EMSCRIPTEN__)
+"#version 100\n"
+"precision mediump float;\n"
+"varying vec4 v_Color;\n"
+"#define o_FragColor gl_FragColor\n"
+#else
 "#version 140\n"
 "in vec4 v_Color;\n"
 "out vec4 o_FragColor;\n"
+#endif
 "void main() {"
 "   o_FragColor = v_Color;\n"
 "}";
