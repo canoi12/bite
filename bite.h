@@ -55,12 +55,84 @@ enum {
 
 enum {
     BITEK_NONE = 0,
-    BITEK_ESCAPE,
+
+    BITEK_BACKSPACE,
+    BITEK_TAB,
     BITEK_RETURN,
+    BITEK_SHIFT,
+    BITEK_CONTROL,
+
+    BITEK_ESCAPE,
+
+    BITEK_SPACE,
+
+    BITEK_PAGEUP,
+    BITEK_PAGEDOWN,
+
+    BITEK_LEFT,
     BITEK_UP,
     BITEK_RIGHT,
     BITEK_DOWN,
-    BITEK_LEFT
+
+    BITEK_END,
+    BITEK_HOME,
+    BITEK_INSERT,
+    BITEK_DELETE,
+
+    BITEK_0,
+    BITEK_1,
+    BITEK_2,
+    BITEK_3,
+    BITEK_4,
+    BITEK_5,
+    BITEK_6,
+    BITEK_7,
+    BITEK_8,
+    BITEK_9,
+
+    BITEK_A,
+    BITEK_B,
+    BITEK_C,
+    BITEK_D,
+    BITEK_E,
+    BITEK_F,
+    BITEK_G,
+    BITEK_H,
+    BITEK_I,
+    BITEK_J,
+    BITEK_K,
+    BITEK_L,
+    BITEK_M,
+    BITEK_N,
+    BITEK_O,
+    BITEK_P,
+    BITEK_Q,
+    BITEK_R,
+    BITEK_S,
+    BITEK_T,
+    BITEK_U,
+    BITEK_V,
+    BITEK_W,
+    BITEK_X,
+    BITEK_Y,
+    BITEK_Z,
+
+    BITEK_LWIN,
+    BITEK_RWIN,
+    BITEK_APPS,
+
+    BITEK_NUMPAD0,
+    BITEK_NUMPAD1,
+    BITEK_NUMPAD2,
+    BITEK_NUMPAD3,
+    BITEK_NUMPAD4,
+    BITEK_NUMPAD5,
+    BITEK_NUMPAD6,
+    BITEK_NUMPAD7,
+    BITEK_NUMPAD8,
+    BITEK_NUMPAD9,
+    BITEK_MULTIPLY,
+    BITEK_ADD,
 };
 
 enum {
