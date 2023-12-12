@@ -18,6 +18,7 @@
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/XKBlib.h>
 #include <dlfcn.h>
 #include <time.h>
 #include <unistd.h>
@@ -85,10 +86,76 @@ char keys[512] = {
   [0x5A] = BITEK_Z,
 };
 #else
-char keys[512] = {
-  [XK_tab] = BITEK_TAB,
+char keys[] = {
+  [XK_Tab] = BITEK_TAB,
   [XK_space] = BITEK_SPACE,
-  [XK_return] = BITEK_RETURN,
+  [XK_Return] = BITEK_RETURN,
+  [XK_Shift_L] = BITEK_LSHIFT,
+  [XK_Shift_R] = BITEK_RSHIFT,
+  [XK_Control_L] = BITEK_LCONTROL,
+  [XK_Control_R] = BITEK_RCONTROL,
+  [XK_Super_L] = BITEK_LSUPER,
+  [XK_Super_R] = BITEK_RSUPER,
+
+  [XK_Left] = BITEK_LEFT,
+  [XK_Up] = BITEK_UP,
+  [XK_Right] = BITEK_RIGHT,
+  [XK_Down] = BITEK_DOWN,
+
+  [XK_Page_Up] = BITEK_PAGEUP,
+  [XK_Page_Down] = BITEK_PAGEDOWN,
+
+  [XK_End] = BITEK_END,
+  [XK_Home] = BITEK_HOME,
+
+  [XK_0] = BITEK_0,
+  [XK_1] = BITEK_1,
+  [XK_2] = BITEK_2,
+  [XK_3] = BITEK_3,
+  [XK_4] = BITEK_4,
+  [XK_5] = BITEK_5,
+  [XK_6] = BITEK_6,
+  [XK_7] = BITEK_7,
+  [XK_8] = BITEK_8,
+  [XK_9] = BITEK_9,
+
+  [XK_A] = BITEK_A,
+  [XK_B] = BITEK_B,
+  [XK_C] = BITEK_C,
+  [XK_D] = BITEK_D,
+  [XK_E] = BITEK_E,
+  [XK_F] = BITEK_F,
+  [XK_G] = BITEK_G,
+  [XK_H] = BITEK_H,
+  [XK_I] = BITEK_I,
+  [XK_J] = BITEK_J,
+  [XK_K] = BITEK_K,
+  [XK_L] = BITEK_L,
+  [XK_M] = BITEK_M,
+  [XK_N] = BITEK_N,
+  [XK_O] = BITEK_O,
+  [XK_P] = BITEK_P,
+  [XK_Q] = BITEK_Q,
+  [XK_R] = BITEK_R,
+  [XK_S] = BITEK_S,
+  [XK_T] = BITEK_T,
+  [XK_U] = BITEK_U,
+  [XK_V] = BITEK_V,
+  [XK_W] = BITEK_W,
+  [XK_X] = BITEK_X,
+  [XK_Y] = BITEK_Y,
+  [XK_Z] = BITEK_Z,
+
+  [XK_KP_0] = BITEK_NUMPAD0,
+  [XK_KP_1] = BITEK_NUMPAD1,
+  [XK_KP_2] = BITEK_NUMPAD2,
+  [XK_KP_3] = BITEK_NUMPAD3,
+  [XK_KP_4] = BITEK_NUMPAD4,
+  [XK_KP_5] = BITEK_NUMPAD5,
+  [XK_KP_6] = BITEK_NUMPAD6,
+  [XK_KP_7] = BITEK_NUMPAD7,
+  [XK_KP_8] = BITEK_NUMPAD8,
+  [XK_KP_9] = BITEK_NUMPAD9,
 };
 #endif
 
@@ -935,6 +1002,8 @@ BITE_RESULT _init_window(be_Window *window, const be_Config *conf) {
   }
 
   XFree(vi);
+  XSelectInput(dpy, handle, ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask);
+  XClearWindow(dpy, handle);
   XStoreName(dpy, handle, conf->window.title);
   XMapWindow(dpy, handle);
 
@@ -1286,43 +1355,49 @@ void _poll_events(be_Context *ctx) {
     be_Event e = {0};
     be_EventCallback fn = NULL;
     switch (ev.type) {
-    case ClientMessage: {
-      if (ev.xclient.data.l[0] ==
-          XInternAtom(window->display, "WM_DELETE_WINDOW", 0)) {
-        e.type = BITE_WINDOW_CLOSE;
-      }
-    } break;
-    case DestroyNotify: {
-      e.type = BITE_QUIT;
-    } break;
-    case ConfigureNotify: {
-      XConfigureEvent xce = ev.xconfigure;
-      if ((xce.x != window->x) || (xce.y != window->y)) {
-        window->x = xce.x;
-        window->y = xce.y;
-        e.type = BITE_WINDOW_MOVE;
-        e.window.x = xce.x;
-        e.window.y = xce.y;
-        e.window.handle = window;
-      }
-
-      if ((xce.width != window->width) || (xce.height != window->height)) {
-        window->width = xce.width;
-        window->height = xce.height;
-        e.type = BITE_WINDOW_RESIZE;
-        e.window.x = xce.width;
-        e.window.y = xce.height;
-        e.window.handle = window;
-      }
-    } break;
-    case KeyPress: {
-      e.type = BITE_KEY_PRESSED;
-      e.key.keycode = ev.xkey.keycode;
-    } break;
-    case KeyRelease: {
-      e.type = BITE_KEY_RELEASED;
-      e.key.keycode = ev.xkey.keycode;
-    } break;
+      case ClientMessage: {
+        if (ev.xclient.data.l[0] ==
+            XInternAtom(window->display, "WM_DELETE_WINDOW", 0)) {
+          e.type = BITE_WINDOW_CLOSE;
+        }
+      } break;
+      case DestroyNotify: {
+        e.type = BITE_QUIT;
+      } break;
+      case ConfigureNotify: {
+        XConfigureEvent xce = ev.xconfigure;
+        if ((xce.x != window->x) || (xce.y != window->y)) {
+          window->x = xce.x;
+          window->y = xce.y;
+          e.type = BITE_WINDOW_MOVE;
+          e.window.x = xce.x;
+          e.window.y = xce.y;
+          e.window.handle = window;
+        }
+        if ((xce.width != window->width) || (xce.height != window->height)) {
+          window->width = xce.width;
+          window->height = xce.height;
+          e.type = BITE_WINDOW_RESIZE;
+          e.window.x = xce.width;
+          e.window.y = xce.height;
+          e.window.handle = window;
+        }
+      } break;
+      case KeyPress: {
+        e.type = BITE_KEY_PRESSED;
+        int keysym = XkbKeycodeToKeysym(
+          ctx->window.display,
+          ev.xkey.keycode,
+          0,
+          1
+        );
+        e.key.keycode = keys[keysym];
+        // printf("KeyPress: %d %d %d\n", keysym, ev.xkey.keycode, e.key.keycode);
+      } break;
+      case KeyRelease: {
+        e.type = BITE_KEY_RELEASED;
+        e.key.keycode = keys[ev.xkey.keycode];
+      } break;
     }
     fn = ctx->callbacks[e.type];
     if (fn)

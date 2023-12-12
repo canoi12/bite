@@ -41,7 +41,7 @@ be_Texture* tex;
 be_Shader* shader;
 
 void key_pressed(be_Context* ctx, be_Event* ev) {
-    printf("Pressed: %x\n", ev->key.keycode);
+    printf("Pressed: %d\n", ev->key.keycode);
     if (ev->key.keycode == BITEK_ESCAPE) bite_set_should_close(ctx, 1);
 }
 
