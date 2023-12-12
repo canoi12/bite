@@ -59,6 +59,8 @@ enum {
     BITEK_BACKSPACE,
     BITEK_TAB,
     BITEK_RETURN,
+    BITEK_LALT,
+    BITEK_RALT,
     BITEK_LSHIFT,
     BITEK_RSHIFT,
     BITEK_LCONTROL,
@@ -134,7 +136,26 @@ enum {
     BITEK_NUMPAD8,
     BITEK_NUMPAD9,
     BITEK_MULTIPLY,
-    BITEK_ADD,
+    BITEK_PLUS,
+    BITEK_MINUS,
+
+    BITEK_LESS,
+    BITEK_EQUAL,
+    BITEK_GREATER,
+
+    BITEK_F1,
+    BITEK_F2,
+    BITEK_F3,
+    BITEK_F4,
+    BITEK_F5,
+    BITEK_F6,
+    BITEK_F7,
+    BITEK_F8,
+    BITEK_F9,
+    BITEK_F10,
+    BITEK_F11,
+    BITEK_F12,
+
 };
 
 enum {

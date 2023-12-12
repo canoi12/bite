@@ -87,9 +87,14 @@ char keys[512] = {
 };
 #else
 char keys[] = {
+  [XK_BackSpace] = BITEK_BACKSPACE,
   [XK_Tab] = BITEK_TAB,
-  [XK_space] = BITEK_SPACE,
   [XK_Return] = BITEK_RETURN,
+  [XK_Escape] = BITEK_ESCAPE,
+  [XK_Delete] = BITEK_DELETE,
+  [XK_space] = BITEK_SPACE,
+  [XK_Alt_L] = BITEK_LALT,
+  [XK_Alt_R] = BITEK_RALT,
   [XK_Shift_L] = BITEK_LSHIFT,
   [XK_Shift_R] = BITEK_RSHIFT,
   [XK_Control_L] = BITEK_LCONTROL,
@@ -146,6 +151,33 @@ char keys[] = {
   [XK_Y] = BITEK_Y,
   [XK_Z] = BITEK_Z,
 
+  [XK_a] = BITEK_A,
+  [XK_b] = BITEK_B,
+  [XK_c] = BITEK_C,
+  [XK_d] = BITEK_D,
+  [XK_e] = BITEK_E,
+  [XK_f] = BITEK_F,
+  [XK_g] = BITEK_G,
+  [XK_h] = BITEK_H,
+  [XK_i] = BITEK_I,
+  [XK_j] = BITEK_J,
+  [XK_k] = BITEK_K,
+  [XK_l] = BITEK_L,
+  [XK_m] = BITEK_M,
+  [XK_n] = BITEK_N,
+  [XK_o] = BITEK_O,
+  [XK_p] = BITEK_P,
+  [XK_q] = BITEK_Q,
+  [XK_r] = BITEK_R,
+  [XK_s] = BITEK_S,
+  [XK_t] = BITEK_T,
+  [XK_u] = BITEK_U,
+  [XK_v] = BITEK_V,
+  [XK_w] = BITEK_W,
+  [XK_x] = BITEK_X,
+  [XK_y] = BITEK_Y,
+  [XK_z] = BITEK_Z,
+
   [XK_KP_0] = BITEK_NUMPAD0,
   [XK_KP_1] = BITEK_NUMPAD1,
   [XK_KP_2] = BITEK_NUMPAD2,
@@ -156,6 +188,25 @@ char keys[] = {
   [XK_KP_7] = BITEK_NUMPAD7,
   [XK_KP_8] = BITEK_NUMPAD8,
   [XK_KP_9] = BITEK_NUMPAD9,
+
+  [XK_F1] = BITEK_F1,
+  [XK_F2] = BITEK_F2,
+  [XK_F3] = BITEK_F3,
+  [XK_F4] = BITEK_F4,
+  [XK_F5] = BITEK_F5,
+  [XK_F6] = BITEK_F6,
+  [XK_F7] = BITEK_F7,
+  [XK_F8] = BITEK_F8,
+  [XK_F9] = BITEK_F9,
+  [XK_F10] = BITEK_F10,
+  [XK_F11] = BITEK_F11,
+  [XK_F12] = BITEK_F12,
+
+  [XK_minus] = BITEK_MINUS,
+  [XK_plus] = BITEK_PLUS,
+  [XK_less] = BITEK_LESS,
+  [XK_equal] = BITEK_EQUAL,
+  [XK_greater] = BITEK_GREATER,
 };
 #endif
 
@@ -524,7 +575,7 @@ be_Context *bite_create(const be_Config *conf) {
     free(ctx);
     return NULL;
   }
-  const char *ver = glGetString(GL_VERSION);
+  const char *ver = (const char*)glGetString(GL_VERSION);
   printf("OpenGL loaded: %s\n", ver);
   return ctx;
 }
@@ -1385,18 +1436,25 @@ void _poll_events(be_Context *ctx) {
       } break;
       case KeyPress: {
         e.type = BITE_KEY_PRESSED;
+        int code = ev.xkey.keycode;
         int keysym = XkbKeycodeToKeysym(
           ctx->window.display,
           ev.xkey.keycode,
           0,
-          1
+          ev.xkey.state & ShiftMask ? 1 : 0
         );
         e.key.keycode = keys[keysym];
-        // printf("KeyPress: %d %d %d\n", keysym, ev.xkey.keycode, e.key.keycode);
+        printf("KeyPress: %d %d %d\n", keysym, ev.xkey.keycode, e.key.keycode);
       } break;
       case KeyRelease: {
         e.type = BITE_KEY_RELEASED;
-        e.key.keycode = keys[ev.xkey.keycode];
+        int keysym = XkbKeycodeToKeysym(
+          ctx->window.display,
+          ev.xkey.keycode,
+          0,
+          ev.xkey.state & ShiftMask ? 1 : 0
+        );
+        e.key.keycode = keys[keysym];
       } break;
     }
     fn = ctx->callbacks[e.type];
